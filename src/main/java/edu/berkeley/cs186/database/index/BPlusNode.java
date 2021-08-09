@@ -16,12 +16,24 @@ import java.util.Optional;
  * information.
  */
 abstract class BPlusNode {
+    // Metadata about the B+ tree that this node belongs to.
+    protected BPlusTreeMetadata metadata;
+
+    // Buffer manager
+    protected BufferManager bufferManager;
+
+    // Lock context of the B+ tree
+    protected LockContext treeContext;
+
+    // The page on which this node is serialized.
+    protected Page page;
+
     // Core API ////////////////////////////////////////////////////////////////
     /**
      * n.get(k) returns the leaf node on which k may reside when queried from n.
      * For example, consider the following B+ tree (for brevity, only keys are
      * shown; record ids are omitted).
-     *
+     * <pre>
      *                               inner
      *                               +----+----+----+----+
      *                               | 10 | 20 |    |    |
@@ -39,7 +51,7 @@ abstract class BPlusNode {
      *   - leaf0 when x < 10,
      *   - leaf1 when 10 <= x < 20, and
      *   - leaf2 when x >= 20.
-     *
+     * </pre>
      * Note that inner.get(4) would return leaf0 even though leaf0 doesn't
      * actually contain 4.
      */
@@ -69,7 +81,7 @@ abstract class BPlusNode {
      * take a look at an example. Consider inserting the key 4 into the example
      * tree above. No nodes overflow (i.e. we always hit case 1). The tree then
      * looks like this:
-     *
+     * <pre>
      *                               inner
      *                               +----+----+----+----+
      *                               | 10 | 20 |    |    |
@@ -81,22 +93,22 @@ abstract class BPlusNode {
      *   |  1 |  2 |  3 |  4 |->| 11 | 12 | 13 |    |->| 21 | 22 | 23 |    |
      *   +----+----+----+----+  +----+----+----+----+  +----+----+----+----+
      *   leaf0                  leaf1                  leaf2
-     *
+     * </pre>
      * Now let's insert key 5 into the tree. Now, leaf0 overflows and creates a
      * new right sibling leaf3. d entries remain in the left node; d + 1 entries
      * are moved to the right node. DO NOT REDISTRIBUTE ENTRIES ANY OTHER WAY. In
      * our example, leaf0 and leaf3 would look like this:
-     *
+     * <pre>
      *   +----+----+----+----+  +----+----+----+----+
      *   |  1 |  2 |    |    |->|  3 |  4 |  5 |    |
      *   +----+----+----+----+  +----+----+----+----+
      *   leaf0                  leaf3
-     *
+     * </pre>
      * When a leaf splits, it returns the first entry in the right node as the
      * split key. In this example, 3 is the split key. After leaf0 splits, inner
      * inserts the new key and child pointer into itself and hits case 0 (i.e. it
      * does not overflow). The tree looks like this:
-     *
+     * <pre>
      *                          inner
      *                          +--+--+--+--+
      *                          | 3|10|20|  |
@@ -108,12 +120,12 @@ abstract class BPlusNode {
      *   | 1| 2|  |  |->| 3| 4| 5|  |->|11|12|13|  |->|21|22|23|  |
      *   +--+--+--+--+  +--+--+--+--+  +--+--+--+--+  +--+--+--+--+
      *   leaf0          leaf3          leaf1          leaf2
-     *
+     * </pre>
      * When an inner node splits, the first d entries are kept in the left node
      * and the last d entries are moved to the right node. The middle entry is
      * moved (not copied) up as the split key. For example, we would split the
      * following order 2 inner node
-     *
+     * <pre>
      *   +---+---+---+---+
      *   | 1 | 2 | 3 | 4 | 5
      *   +---+---+---+---+
@@ -125,7 +137,7 @@ abstract class BPlusNode {
      *   +---+---+---+---+  +---+---+---+---+
      *
      * with a split key of 3.
-     *
+     * </pre>
      * DO NOT redistribute entries in any other way besides what we have
      * described. For example, do not move entries between nodes to avoid
      * splitting.
@@ -168,7 +180,7 @@ abstract class BPlusNode {
      * REMOVE SHOULD NOT REBALANCE THE TREE. Simply delete the key and
      * corresponding record id. For example, running inner.remove(2) on the
      * example tree above would produce the following tree.
-     *
+     *<pre>
      *                               inner
      *                               +----+----+----+----+
      *                               | 10 | 20 |    |    |
@@ -208,7 +220,7 @@ abstract class BPlusNode {
      *   |    |    |    |    |->| 11 | 12 | 13 |    |->| 21 | 22 | 23 |    |
      *   +----+----+----+----+  +----+----+----+----+  +----+----+----+----+
      *   leaf0                  leaf1                  leaf2
-     *
+     *</pre>
      * Again, do NOT rebalance the tree.
      */
     public abstract void remove(DataBox key);
@@ -223,7 +235,7 @@ abstract class BPlusNode {
      * structures (sort of like how JSON is a way of encoding nested dictionaries
      * and lists). n.toSexp() returns an sexp encoding of the subtree rooted by
      * n. For example, the following tree:
-     *
+     * <pre>
      *                      +---+
      *                      | 3 |
      *                      +---+
@@ -237,6 +249,7 @@ abstract class BPlusNode {
      *   (((1 (1 1)) (2 (2 2))) 3 ((3 (3 3)) (4 (4 4))))
      *
      * Here, (1 (1 1)) represents the mapping from key 1 to record id (1, 1).
+     * </pre>
      */
     public abstract String toSexp();
 

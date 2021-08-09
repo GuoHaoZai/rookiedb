@@ -20,24 +20,14 @@ import java.util.*;
  * leaf is serialized. For example, here is an illustration of two order 2
  * leafs connected together:
  *
+ * <pre>
  *   leaf 1 (stored on some page)          leaf 2 (stored on some other page)
  *   +-------+-------+-------+-------+     +-------+-------+-------+-------+
  *   | k0:r0 | k1:r1 | k2:r2 |       | --> | k3:r3 | k4:r4 |       |       |
  *   +-------+-------+-------+-------+     +-------+-------+-------+-------+
+ * </pre>
  */
 class LeafNode extends BPlusNode {
-    // Metadata about the B+ tree that this node belongs to.
-    private BPlusTreeMetadata metadata;
-
-    // Buffer manager
-    private BufferManager bufferManager;
-
-    // Lock context of the B+ tree
-    private LockContext treeContext;
-
-    // The page on which this leaf is serialized.
-    private Page page;
-
     // The keys and record ids of this leaf. `keys` is always sorted in ascending
     // order. The record id at index i corresponds to the key at index i. For
     // example, the keys [a, b, c] and the rids [1, 2, 3] represent the pairing
@@ -106,6 +96,7 @@ class LeafNode extends BPlusNode {
     private Optional<Long> rightSibling;
 
     // Constructors ////////////////////////////////////////////////////////////
+
     /**
      * Construct a brand new leaf node. This constructor will fetch a new pinned
      * page from the provided BufferManager `bufferManager` and persist the node
@@ -170,7 +161,7 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.bulkLoad.
     @Override
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
-            float fillFactor) {
+                                                  float fillFactor) {
         // TODO(proj2): implement
 
         return Optional.empty();
@@ -185,7 +176,10 @@ class LeafNode extends BPlusNode {
     }
 
     // Iterators ///////////////////////////////////////////////////////////////
-    /** Return the record id associated with `key`. */
+
+    /**
+     * Return the record id associated with `key`.
+     */
     Optional<RecordId> getKey(DataBox key) {
         int index = keys.indexOf(key);
         return index == -1 ? Optional.empty() : Optional.of(rids.get(index));
@@ -215,7 +209,9 @@ class LeafNode extends BPlusNode {
         return page;
     }
 
-    /** Returns the right sibling of this leaf, if it has one. */
+    /**
+     * Returns the right sibling of this leaf, if it has one.
+     */
     Optional<LeafNode> getRightSibling() {
         if (!rightSibling.isPresent()) {
             return Optional.empty();
@@ -225,7 +221,9 @@ class LeafNode extends BPlusNode {
         return Optional.of(LeafNode.fromBytes(metadata, bufferManager, treeContext, pageNum));
     }
 
-    /** Serializes this leaf to its page. */
+    /**
+     * Serializes this leaf to its page.
+     */
     private void sync() {
         page.pin();
         try {
@@ -289,7 +287,7 @@ class LeafNode extends BPlusNode {
     public String toString() {
         String rightSibString = rightSibling.map(Object::toString).orElse("None");
         return String.format("LeafNode(pageNum=%s, keys=%s, rids=%s, rightSibling=%s)",
-                page.getPageNum(), keys, rids, rightSibString);
+                             page.getPageNum(), keys, rids, rightSibString);
     }
 
     @Override
@@ -306,8 +304,8 @@ class LeafNode extends BPlusNode {
     /**
      * Given a leaf with page number 1 and three (key, rid) pairs (0, (0, 0)),
      * (1, (1, 1)), and (2, (2, 2)), the corresponding dot fragment is:
-     *
-     *   node1[label = "{0: (0 0)|1: (1 1)|2: (2 2)}"];
+     * <p>
+     * node1[label = "{0: (0 0)|1: (1 1)|2: (2 2)}"];
      */
     @Override
     public String toDot() {

@@ -18,7 +18,7 @@ import java.util.*;
 
 /**
  * A persistent B+ tree.
- *
+ * <pre>
  *   BPlusTree tree = new BPlusTree(bufferManager, metadata, lockContext);
  *
  *   // Insert some values into the tree.
@@ -49,6 +49,7 @@ import java.util.*;
  *   fromDisk.get(new IntDataBox(0)); // Optional.empty()
  *   fromDisk.get(new IntDataBox(1)); // Optional.of(RecordId(1, 1))
  *   fromDisk.get(new IntDataBox(2)); // Optional.of(RecordId(2, 2))
+ *   </pre>
  */
 public class BPlusTree {
     // Buffer manager
