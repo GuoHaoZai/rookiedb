@@ -1,5 +1,6 @@
 package edu.berkeley.cs186.database.index;
 
+import com.sun.istack.internal.NotNull;
 import edu.berkeley.cs186.database.common.Buffer;
 import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.concurrency.LockContext;
@@ -55,6 +56,7 @@ abstract class BPlusNode {
      * Note that inner.get(4) would return leaf0 even though leaf0 doesn't
      * actually contain 4.
      */
+    @NotNull
     public abstract LeafNode get(DataBox key);
 
     /**
@@ -67,7 +69,7 @@ abstract class BPlusNode {
     /**
      * n.put(k, r) inserts the pair (k, r) into the subtree rooted by n. There
      * are two cases to consider:
-     *
+     * <pre>
      *   Case 1: If inserting the pair (k, r) does NOT cause n to overflow, then
      *           Optional.empty() is returned.
      *   Case 2: If inserting the pair (k, r) does cause the node n to overflow,
@@ -76,7 +78,7 @@ abstract class BPlusNode {
      *           where right_node_page_num is the page number of the newly
      *           created right node, and the value of split_key depends on
      *           whether n is an inner node or a leaf node (described more below).
-     *
+     * </pre>
      * Now we explain how to split nodes and which split keys to return. Let's
      * take a look at an example. Consider inserting the key 4 into the example
      * tree above. No nodes overflow (i.e. we always hit case 1). The tree then

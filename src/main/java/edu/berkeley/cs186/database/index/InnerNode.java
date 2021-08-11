@@ -19,11 +19,11 @@ import java.util.*;
  * inner node is serialized and persisted on a single page; see toBytes and
  * fromBytes for details on how an inner node is serialized. For example, here
  * is an illustration of an order 2 inner node:
- *
- *     +----+----+----+----+
- *     | 10 | 20 | 30 |    |
- *     +----+----+----+----+
- *    /     |    |     \
+ * <p>
+ * +----+----+----+----+
+ * | 10 | 20 | 30 |    |
+ * +----+----+----+----+
+ * /     |    |     \
  */
 class InnerNode extends BPlusNode {
 
@@ -35,6 +35,7 @@ class InnerNode extends BPlusNode {
     private List<Long> children;
 
     // Constructors ////////////////////////////////////////////////////////////
+
     /**
      * Construct a brand new inner node.
      */
@@ -69,43 +70,95 @@ class InnerNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        // TODO(proj2): implement
-
-        return null;
+        int index = numLessThanEqual(key, keys);
+        BPlusNode child = getChild(index);
+        return child.get(key);
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
-        assert(children.size() > 0);
-        // TODO(proj2): implement
-
-        return null;
+        assert (children.size() > 0);
+        return getChild(0).getLeftmostLeaf();
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
+        Optional<Pair<DataBox, Long>> newRightSiblingPair = Optional.of(numLessThanEqual(key, this.keys))
+                .map(index -> {
+                    BPlusNode child = getChild(index);
+                    child.put(key, rid).ifPresent(newChild -> {
+                        // 添加到当前节点
+                        this.keys.add(index, newChild.getFirst());
+                        this.children.add(index + 1, newChild.getSecond());
+                    });
+                    return keys.size();
+                })
+                // 是否溢出
+                .filter(keySize -> keySize == this.metadata.getOrder() * 2 + 1)
+                .map(keySize -> {
+                    // 分割
+                    int middleSize = keySize / 2;
+                    List<DataBox> theKeys = this.keys;
+                    List<Long> thrChildren = this.children;
 
-        return Optional.empty();
+                    InnerNode newRightSibling = new InnerNode(this.metadata,
+                                                              this.bufferManager,
+                                                              theKeys.subList(middleSize + 1, theKeys.size()),
+                                                              thrChildren.subList(middleSize + 1, thrChildren.size()),
+                                                              this.treeContext);
+                    this.keys = theKeys.subList(0, middleSize);
+                    this.children = thrChildren.subList(0, middleSize + 1);
+
+                    return new Pair<>(theKeys.get(middleSize), newRightSibling.getPage().getPageNum());
+                });
+        sync();
+        return newRightSiblingPair;
     }
 
     // See BPlusNode.bulkLoad.
     @Override
-    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
-            float fillFactor) {
-        // TODO(proj2): implement
+    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data, float fillFactor) {
+        // 强调阶数
+        int d = metadata.getOrder();
+        while (data.hasNext() && keys.size() <= 2 * d) {
+            BPlusNode rightChild = getChild(children.size() - 1);
+            Optional<Pair<DataBox, Long>> o = rightChild.bulkLoad(data, fillFactor);
+            if (o.isPresent()) {
+                Pair<DataBox, Long> p = o.get();
+                keys.add(keys.size(), p.getFirst());
+                children.add(children.size(), p.getSecond());
+            }
+        }
 
-        return Optional.empty();
+        if (keys.size() <= 2*d) {
+            sync();
+            return Optional.empty();
+        }
+
+        assert(keys.size() == 2*d + 1);
+        List<DataBox> leftKeys = keys.subList(0, d);
+        DataBox middleKey = keys.get(d);
+        List<DataBox> rightKeys = keys.subList(d + 1, 2*d + 1);
+        List<Long> leftChildren = children.subList(0, d + 1);
+        List<Long> rightChildren = children.subList(d + 1, 2*d + 2);
+
+        // Create right node.
+        InnerNode n = new InnerNode(metadata, bufferManager, rightKeys, rightChildren, treeContext);
+        // Update left node.
+        this.keys = leftKeys;
+        this.children = leftChildren;
+        sync();
+
+        return Optional.of(new Pair<>(middleKey, n.getPage().getPageNum()));
     }
 
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
-
-        return;
+        LeafNode leafNode = get(key);
+        leafNode.remove(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
@@ -143,6 +196,7 @@ class InnerNode extends BPlusNode {
     List<Long> getChildren() {
         return children;
     }
+
     /**
      * Returns the largest number d such that the serialization of an InnerNode
      * with 2d keys will fit on a single page.
@@ -249,11 +303,11 @@ class InnerNode extends BPlusNode {
     /**
      * An inner node on page 0 with a single key k and two children on page 1 and
      * 2 is turned into the following DOT fragment:
-     *
-     *   node0[label = "<f0>|k|<f1>"];
-     *   ... // children
-     *   "node0":f0 -> "node1";
-     *   "node0":f1 -> "node2";
+     * <p>
+     * node0[label = "<f0>|k|<f1>"];
+     * ... // children
+     * "node0":f0 -> "node1";
+     * "node0":f1 -> "node2";
      */
     @Override
     public String toDot() {
@@ -334,7 +388,7 @@ class InnerNode extends BPlusNode {
         Buffer buf = page.getBuffer();
 
         byte nodeType = buf.get();
-        assert(nodeType == (byte) 0);
+        assert (nodeType == (byte) 0);
 
         List<DataBox> keys = new ArrayList<>();
         List<Long> children = new ArrayList<>();
@@ -359,8 +413,8 @@ class InnerNode extends BPlusNode {
         }
         InnerNode n = (InnerNode) o;
         return page.getPageNum() == n.page.getPageNum() &&
-               keys.equals(n.keys) &&
-               children.equals(n.children);
+                keys.equals(n.keys) &&
+                children.equals(n.children);
     }
 
     @Override
